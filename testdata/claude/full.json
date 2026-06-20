@@ -1,0 +1,9 @@
+{
+  "model": {"id": "claude-opus-4-7", "display_name": "Opus 4.7"},
+  "workspace": {"current_dir": "/tmp/signalrail", "project_dir": "/tmp/signalrail"},
+  "cost": {"total_cost_usd": 1.24},
+  "context_window": {"context_window_size": 200000, "used_percentage": 62, "remaining_percentage": 38},
+  "effort": {"level": "high"},
+  "session_id": "session-123",
+  "future_field": {"safe": true}
+}

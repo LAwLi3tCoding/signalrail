@@ -14,7 +14,7 @@
 - Rendering performs no network access and keeps protocol stdout diagnostic-free.
 - Arrays replace lower config layers; tables merge; unknown keys fail validation.
 - No wrap or broken ANSI at 40, 60, 80, 120, or 160 cells.
-- Exact, estimated, cached, stale, and unavailable data remain distinguishable.
+- Confidence (`exact`, `estimated`, `unavailable`) and freshness (`fresh`, `cached`, `stale`, `degraded`) remain separate and visible.
 - Codex capability gaps are reported, never hidden.
 - Mutable state stays in `.signalrail/state.json`; project policy stays in `.signalrail.toml`.
 
@@ -38,12 +38,12 @@
 **Files:** Create `go.mod`, `internal/status/model.go`, `internal/config/model.go`, `internal/config/load.go`; test `internal/config/load_test.go`.
 
 **Interfaces:**
-- Produces `status.Datum[T] { Value, Confidence, Source, ObservedAt, ExpiresAt }`.
+- Produces `status.Datum[T] { Value, Confidence, Freshness, Source, ObservedAt, ExpiresAt }`.
 - Produces `config.Load(projectDir, userDir string, runtime Runtime, overrides Overrides) (Config, error)`.
 
 - [ ] Write tests for defaults, user/project/runtime precedence, array replacement, and unknown-key errors.
 - [ ] Run `go test ./internal/config`; expect failure because packages are absent.
-- [ ] Define provenance, snapshot, segment, privacy, task, context, and cost types.
+- [ ] Define provenance, freshness, snapshot, segment, privacy, task, context, and cost types.
 - [ ] Implement versioned config defaults and strict TOML decoding.
 - [ ] Run focused tests, then `go test ./...`; expect PASS.
 - [ ] Commit `feat: add status model and config resolution`.
@@ -109,8 +109,8 @@
 - [ ] Write dry-run, backup, idempotency, comments-preserved, and malformed-config tests.
 - [ ] Run tests; expect missing planner failure.
 - [ ] Implement Claude `statusLine` merge with `padding=0` and configurable refresh.
-- [ ] Implement Codex mapping for model, project, branch, task progress, context, limits, colors, and terminal title.
-- [ ] Emit warnings for cost, forecast, and custom task text unsupported by Codex.
+- [ ] Implement the pinned Codex item mapping from `DESIGN.md`; document that native `task-progress` comes from Codex `update_plan` only.
+- [ ] Emit warnings for cost, forecast, SignalRail task state, and custom task text unsupported by Codex.
 - [ ] Run installer tests with race detection; expect PASS.
 - [ ] Commit `feat: add Claude and Codex installers`.
 

@@ -22,7 +22,7 @@ Build SignalRail as a Go 1.23+ single-binary CLI. The selected UI is the one-lin
 
 ## Normalized data model
 
-Every segment value carries: value, confidence (`exact`, `estimated`, `cached`, `unavailable`), source, observed time, optional expiry, priority, and privacy class. Runtime adapters may omit fields but may not invent exact values.
+Every segment value carries: value, confidence (`exact`, `estimated`, `unavailable`), freshness (`fresh`, `cached`, `stale`, `degraded`), source, observed time, optional expiry, priority, and privacy class. Runtime adapters may omit fields but may not invent exact values. `↻` means cached and within expiry; `!` means stale or degraded.
 
 Task state carries: title, phase, completed units, total units, status, blocker, updated time, and source runtime. Context state carries used/remaining percentage, window tokens, recent consumption samples, and optional forecast. Cost is disabled by default and always labeled estimated when sourced from a client estimate.
 
@@ -36,7 +36,7 @@ The renderer must never wrap, split an ANSI sequence, leak an absolute home path
 
 ## Install contract
 
-Claude installation updates a `statusLine` command entry and preserves unrelated JSON. Codex installation updates only supported `[tui]` keys using current item identifiers. Both installers create a timestamped backup, support dry-run, and report exact files changed. Project scope writes project-owned configuration only.
+Claude installation updates a `statusLine` command entry and preserves unrelated JSON. Codex installation targets the item set pinned in `DESIGN.md` at upstream commit `406062c3af8b27c8e1b4b83c485ebe1ae0df874c`; native `task-progress` comes from Codex `update_plan` and cannot read SignalRail task state. Both installers create a timestamped backup, support dry-run, and report exact files changed.
 
 ## Test contract
 
@@ -44,4 +44,16 @@ Use test-first development. Required coverage includes official-shaped Claude fi
 
 ## Acceptance
 
-The implementation is accepted when all documented commands work, default output emphasizes the required fields, settings are bilingual while rendered labels stay English, 40/60/80/120/160-column tests do not wrap, Codex capability gaps are explicit, and the repository contains install documentation, examples, license, CI, and verified release-ready builds.
+- `render`: exit 0 and exactly one stdout line; malformed/oversized input exits 2 with stderr only.
+- `preview`: exit 0 without stdin; unknown preset exits 2 and writes no files.
+- `config`: English and Chinese menus persist valid TOML; cancel exits 0 without writes; invalid language exits 2.
+- `task`: valid transitions atomically update `.signalrail/state.json`; invalid transitions exit 2; `clear` removes only that state file.
+- `install`: dry-run never writes; apply preserves unrelated keys and creates a backup; malformed config exits 2 without writes; strict unsupported Codex capability exits 3.
+- `explain`: text and JSON list source, confidence, freshness, inclusion decision, and age for every candidate segment.
+- `doctor`: exit 0 when healthy, 1 for actionable warnings, and 2 for unusable configuration; JSON remains machine-readable.
+- Default output emphasizes required fields, settings are bilingual while rendered labels stay English, and 40/60/80/120/160-cell tests never wrap.
+- Privacy and provenance tests, performance benchmarks, Codex capability warnings, documentation, examples, license, CI, and source builds satisfy `DESIGN.md`.
+
+## v1 cutline
+
+v1 is the command set above with one-line rendering and local data only. Multi-line UI, live custom Codex rendering, network usage APIs, daemons/watchers, IDE surfaces, signed release artifacts, Homebrew/Scoop/npm publication, and web UI are explicitly deferred.
