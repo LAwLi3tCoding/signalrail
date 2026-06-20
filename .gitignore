@@ -1,0 +1,8 @@
+.DS_Store
+.omx/
+.worktrees/
+.learnings/
+.signalrail/state.json
+bin/
+coverage.out
+dist/
