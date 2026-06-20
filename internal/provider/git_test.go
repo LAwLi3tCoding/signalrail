@@ -78,7 +78,7 @@ func TestGitRunnerStopsAtTimeout(t *testing.T) {
 	}
 	start := time.Now()
 	_ = gitWithRunner(context.Background(), "/tmp/demo", runner)
-	if elapsed := time.Since(start); elapsed > 150*time.Millisecond {
+	if elapsed := time.Since(start); elapsed > gitBudget()+100*time.Millisecond {
 		t.Fatalf("elapsed=%v", elapsed)
 	}
 }

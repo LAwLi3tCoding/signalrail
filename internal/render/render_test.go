@@ -67,6 +67,18 @@ func TestCJKPrivacyAndFreshnessMarkers(t *testing.T) {
 	}
 }
 
+func TestPrivacyRedactsAlternatePathSeparators(t *testing.T) {
+	snapshot, cfg := fixture()
+	snapshot.Task.Value.Title = `C:\Users\alice\secret\build`
+	got, err := Render(snapshot, cfg, Options{Width: 120, Format: "plain", HomeDir: "C:/Users/alice", UserName: "alice"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got.Output, `C:\Users`) || strings.Contains(got.Output, "alice") {
+		t.Fatalf("output=%q", got.Output)
+	}
+}
+
 func TestConfiguredOrderAndExclusionAreHonored(t *testing.T) {
 	snapshot, cfg := fixture()
 	cfg.Segments = []status.SegmentName{status.SegmentContext, status.SegmentModel}

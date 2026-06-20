@@ -82,10 +82,8 @@ func UserPath(userDir string) string {
 	if userDir == "" {
 		return ""
 	}
-	if currentHome, err := os.UserHomeDir(); err == nil && filepath.Clean(userDir) == filepath.Clean(currentHome) {
-		if xdg := os.Getenv("XDG_CONFIG_HOME"); filepath.IsAbs(xdg) {
-			return filepath.Join(xdg, "signalrail", "config.toml")
-		}
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); filepath.IsAbs(xdg) {
+		return filepath.Join(xdg, "signalrail", "config.toml")
 	}
 	return filepath.Join(userDir, ".config", "signalrail", "config.toml")
 }

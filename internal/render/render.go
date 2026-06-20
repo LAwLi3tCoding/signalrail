@@ -262,7 +262,12 @@ func clean(value string, cfg config.Config, opts Options) string {
 	}, value)
 	value = strings.Join(strings.Fields(value), " ")
 	if cfg.Privacy.RedactPaths && opts.HomeDir != "" {
-		value = strings.ReplaceAll(value, filepath.Clean(opts.HomeDir), "~")
+		home := filepath.Clean(opts.HomeDir)
+		for _, variant := range []string{opts.HomeDir, home, strings.ReplaceAll(home, "\\", "/"), strings.ReplaceAll(home, "/", "\\")} {
+			if variant != "" {
+				value = strings.ReplaceAll(value, variant, "~")
+			}
+		}
 	}
 	if cfg.Privacy.RedactUser && opts.UserName != "" {
 		value = strings.ReplaceAll(value, opts.UserName, "[user]")

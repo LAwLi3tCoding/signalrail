@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -12,6 +13,13 @@ import (
 
 const gitTimeout = 50 * time.Millisecond
 
+func gitBudget() time.Duration {
+	if runtime.GOOS == "windows" {
+		return 250 * time.Millisecond
+	}
+	return gitTimeout
+}
+
 type gitRunner func(context.Context, string, ...string) (string, error)
 
 func Git(parent context.Context, cwd string) status.Project {
@@ -20,7 +28,7 @@ func Git(parent context.Context, cwd string) status.Project {
 
 func gitWithRunner(parent context.Context, cwd string, runner gitRunner) status.Project {
 	project := status.Project{Name: filepath.Base(filepath.Clean(cwd))}
-	ctx, cancel := context.WithTimeout(parent, gitTimeout)
+	ctx, cancel := context.WithTimeout(parent, gitBudget())
 	defer cancel()
 	branch, err := runGitProbe(ctx, runner, cwd, "branch", "--show-current")
 	if err != nil {
