@@ -153,6 +153,7 @@ segments = ["model", "context"]
 func TestLoadUsesXDGConfigHomeForCurrentUser(t *testing.T) {
 	home, xdg, project := t.TempDir(), t.TempDir(), t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", xdg)
 	writeConfig(t, filepath.Join(xdg, "signalrail", "config.toml"), `
 segments = ["model", "context"]
@@ -168,6 +169,15 @@ segments = ["model", "context"]
 	}
 	if got := UserPath(home); got != filepath.Join(xdg, "signalrail", "config.toml") {
 		t.Fatalf("UserPath() = %q", got)
+	}
+}
+
+func TestUserPathKeepsExplicitAlternateHomeIsolated(t *testing.T) {
+	alternate, xdg := t.TempDir(), t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	want := filepath.Join(alternate, ".config", "signalrail", "config.toml")
+	if got := UserPath(alternate); got != want {
+		t.Fatalf("UserPath() = %q, want isolated path %q", got, want)
 	}
 }
 
