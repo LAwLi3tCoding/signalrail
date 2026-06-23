@@ -17,7 +17,27 @@ done
 mkdir -p "$tmp/project/.git"
 printf '2\ny\n' | "$tmp/signalrail" config --lang en --scope project --project "$tmp/project" --home "$tmp/home" >/dev/null
 test -f "$tmp/project/.signalrail.toml"
+cat >"$tmp/project/.signalrail.toml" <<'EOF'
+version = 1
+segments = ["model", "context"]
+
+[runtime.codex]
+segments = ["model", "context"]
+EOF
 "$tmp/signalrail" explain --json --project "$tmp/project" --home "$tmp/home" >/dev/null
+effective_preview="$($tmp/signalrail preview --project "$tmp/project" --home "$tmp/home")"
+printf '%s' "$effective_preview" | grep -q 'GPT-5.5'
+printf '%s' "$effective_preview" | grep -q 'CTX 38% left'
+if printf '%s' "$effective_preview" | grep -q 'Build renderer'; then
+  echo "effective preview ignored configured segments" >&2
+  exit 1
+fi
+"$tmp/signalrail" install codex --scope project --dry-run --home "$tmp/home" --project "$tmp/project" >"$tmp/codex-dry-run.toml"
+grep -q 'status_line = \["model-with-reasoning", "context-remaining"\]' "$tmp/codex-dry-run.toml"
+if grep -q 'git-branch' "$tmp/codex-dry-run.toml"; then
+  echo "Codex dry-run ignored configured runtime segments" >&2
+  exit 1
+fi
 
 "$tmp/signalrail" task set "Smoke task" --total 2 --project "$tmp/project" >/dev/null
 "$tmp/signalrail" task step --project "$tmp/project" >/dev/null

@@ -7,8 +7,8 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/LAwLi3t-CN/signalrail/internal/config"
-	"github.com/LAwLi3t-CN/signalrail/internal/status"
+	"github.com/LAwLi3tCoding/signalrail/internal/config"
+	"github.com/LAwLi3tCoding/signalrail/internal/status"
 )
 
 type Options struct {

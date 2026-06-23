@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LAwLi3t-CN/signalrail/internal/config"
-	"github.com/LAwLi3t-CN/signalrail/internal/render"
-	"github.com/LAwLi3t-CN/signalrail/internal/status"
+	"github.com/LAwLi3tCoding/signalrail/internal/config"
+	"github.com/LAwLi3tCoding/signalrail/internal/render"
+	"github.com/LAwLi3tCoding/signalrail/internal/status"
 	toml "github.com/pelletier/go-toml/v2"
 )
 
@@ -35,6 +35,10 @@ type Explanation struct {
 	Output   string    `json:"output"`
 	Segments []Segment `json:"segments"`
 }
+type installCandidate struct {
+	path  string
+	scope string
+}
 
 func Doctor(home, project string) (Report, int) {
 	report := Report{Status: "ok"}
@@ -46,8 +50,14 @@ func Doctor(home, project string) (Report, int) {
 		}
 		report.Checks = append(report.Checks, Check{string(runtime) + "-config", "ok", "SignalRail configuration is valid"})
 	}
-	claudeCheck, claudeCode := checkClaude([]string{filepath.Join(project, ".claude", "settings.json"), filepath.Join(home, ".claude", "settings.json")})
-	codexCheck, codexCode := checkCodex([]string{filepath.Join(project, ".codex", "config.toml"), filepath.Join(home, ".codex", "config.toml")})
+	claudeCheck, claudeCode := checkClaude([]installCandidate{
+		{path: filepath.Join(project, ".claude", "settings.json"), scope: "project"},
+		{path: filepath.Join(home, ".claude", "settings.json"), scope: "user"},
+	})
+	codexCheck, codexCode := checkCodex([]installCandidate{
+		{path: filepath.Join(project, ".codex", "config.toml"), scope: "project"},
+		{path: filepath.Join(home, ".codex", "config.toml"), scope: "user"},
+	})
 	report.Checks = append(report.Checks, claudeCheck, codexCheck, Check{"codex-capability", "ok", "native fields only; external rendering is not claimed"})
 	if claudeCode == 2 || codexCode == 2 {
 		report.Status = "error"
@@ -73,12 +83,12 @@ func Explain(snapshot status.Snapshot, result render.Result, _ []status.SegmentN
 	return explanation
 }
 
-func checkClaude(paths []string) (Check, int) {
-	path := firstExisting(paths)
-	if path == "" {
-		return Check{"claude-install", "warning", "SignalRail statusLine is not installed"}, 1
+func checkClaude(candidates []installCandidate) (Check, int) {
+	candidate, found := firstExisting(candidates)
+	if !found {
+		return Check{"claude-install", "warning", "SignalRail statusLine is not installed; run: " + repairCommand("claude", "user")}, 1
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(candidate.path)
 	if err != nil {
 		return Check{"claude-install", "error", err.Error()}, 2
 	}
@@ -89,17 +99,17 @@ func checkClaude(paths []string) (Check, int) {
 	line, ok := root["statusLine"].(map[string]any)
 	command, _ := line["command"].(string)
 	if !ok || line["type"] != "command" || !strings.Contains(command, "signalrail") {
-		return Check{"claude-install", "warning", "Claude statusLine does not invoke SignalRail"}, 1
+		return Check{"claude-install", "warning", "Claude statusLine does not invoke SignalRail; run: " + repairCommand("claude", candidate.scope)}, 1
 	}
 	return Check{"claude-install", "ok", "Claude statusLine invokes SignalRail"}, 0
 }
 
-func checkCodex(paths []string) (Check, int) {
-	path := firstExisting(paths)
-	if path == "" {
-		return Check{"codex-install", "warning", "SignalRail Codex status line is not installed"}, 1
+func checkCodex(candidates []installCandidate) (Check, int) {
+	candidate, found := firstExisting(candidates)
+	if !found {
+		return Check{"codex-install", "warning", "SignalRail Codex status line is not installed; run: " + repairCommand("codex", "user")}, 1
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(candidate.path)
 	if err != nil {
 		return Check{"codex-install", "error", err.Error()}, 2
 	}
@@ -112,7 +122,7 @@ func checkCodex(paths []string) (Check, int) {
 		return Check{"codex-install", "error", fmt.Sprintf("invalid Codex config: %v", err)}, 2
 	}
 	if len(document.TUI.StatusLine) == 0 || !strings.Contains(string(data), "# SignalRail managed status line") {
-		return Check{"codex-install", "warning", "Codex status_line is not managed by SignalRail"}, 1
+		return Check{"codex-install", "warning", "Codex status_line is not managed by SignalRail; run: " + repairCommand("codex", candidate.scope)}, 1
 	}
 	return Check{"codex-install", "ok", "Codex native status_line is configured"}, 0
 }
@@ -133,13 +143,16 @@ func metadata(snapshot status.Snapshot, name status.SegmentName) (status.Confide
 		return status.ConfidenceUnavailable, status.FreshnessDegraded, status.Source{}, time.Time{}
 	}
 }
-func firstExisting(paths []string) string {
-	for _, path := range paths {
-		if exists(path) {
-			return path
+func firstExisting(candidates []installCandidate) (installCandidate, bool) {
+	for _, candidate := range candidates {
+		if exists(candidate.path) {
+			return candidate, true
 		}
 	}
-	return ""
+	return installCandidate{}, false
+}
+func repairCommand(runtime, scope string) string {
+	return fmt.Sprintf("signalrail install %s --scope %s", runtime, scope)
 }
 func exists(path string) bool {
 	info, err := os.Stat(path)

@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/LAwLi3t-CN/signalrail/internal/status"
+	"github.com/LAwLi3tCoding/signalrail/internal/status"
 	toml "github.com/pelletier/go-toml/v2"
 )
 

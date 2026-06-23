@@ -1,4 +1,4 @@
-module github.com/LAwLi3t-CN/signalrail
+module github.com/LAwLi3tCoding/signalrail
 
 go 1.23.0
 

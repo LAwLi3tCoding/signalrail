@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LAwLi3t-CN/signalrail/internal/adapter"
-	"github.com/LAwLi3t-CN/signalrail/internal/config"
-	statusrender "github.com/LAwLi3t-CN/signalrail/internal/render"
+	"github.com/LAwLi3tCoding/signalrail/internal/adapter"
+	"github.com/LAwLi3tCoding/signalrail/internal/config"
+	statusrender "github.com/LAwLi3tCoding/signalrail/internal/render"
 )
 
 func TestRenderAndMalformedProtocolBoundaries(t *testing.T) {
@@ -43,6 +43,33 @@ func TestPreviewUnknownPresetWritesNothing(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, ".signalrail")); !os.IsNotExist(err) {
 		t.Fatalf("preview wrote state: %v", err)
+	}
+}
+
+func TestPreviewUsesEffectiveConfigUnlessPresetIsExplicit(t *testing.T) {
+	root, home := initProject(t), t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".signalrail.toml"), []byte("segments = [\"context\"]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out, stderr bytes.Buffer
+	code := Run(context.Background(), []string{"preview", "--project", root, "--home", home}, strings.NewReader(""), &out, &stderr)
+	if code != 0 || !strings.Contains(out.String(), "CTX 38% left") || strings.Contains(out.String(), "GPT-5.5") {
+		t.Fatalf("effective preview code=%d out=%q err=%q", code, out.String(), stderr.String())
+	}
+	out.Reset()
+	stderr.Reset()
+	code = Run(context.Background(), []string{"preview", "--preset", "wide", "--project", root, "--home", home}, strings.NewReader(""), &out, &stderr)
+	if code != 0 || !strings.Contains(out.String(), "GPT-5.5") || !strings.Contains(out.String(), "$1.24~") {
+		t.Fatalf("preset preview code=%d out=%q err=%q", code, out.String(), stderr.String())
+	}
+}
+
+func TestPreviewRejectsInvalidRuntimeEvenWithExplicitPreset(t *testing.T) {
+	root, home := initProject(t), t.TempDir()
+	var out, stderr bytes.Buffer
+	code := Run(context.Background(), []string{"preview", "--preset", "wide", "--runtime", "invalid", "--project", root, "--home", home}, strings.NewReader(""), &out, &stderr)
+	if code != 2 || out.Len() != 0 || !strings.Contains(stderr.String(), "runtime must be auto, claude, or codex") {
+		t.Fatalf("code=%d out=%q err=%q", code, out.String(), stderr.String())
 	}
 }
 
@@ -125,6 +152,25 @@ func TestInstallDryRunAndStrictCodex(t *testing.T) {
 	}
 }
 
+func TestCodexInstallUsesEffectiveConfigUnlessItemsOverride(t *testing.T) {
+	root, home := initProject(t), t.TempDir()
+	configText := "[runtime.codex]\nsegments = [\"model\", \"context\"]\n"
+	if err := os.WriteFile(filepath.Join(root, ".signalrail.toml"), []byte(configText), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out, stderr bytes.Buffer
+	code := Run(context.Background(), []string{"install", "codex", "--scope", "project", "--dry-run", "--project", root, "--home", home}, strings.NewReader(""), &out, &stderr)
+	if code != 0 || !strings.Contains(out.String(), `status_line = ["model-with-reasoning", "context-remaining"]`) {
+		t.Fatalf("effective install code=%d out=%q err=%q", code, out.String(), stderr.String())
+	}
+	out.Reset()
+	stderr.Reset()
+	code = Run(context.Background(), []string{"install", "codex", "--scope", "project", "--dry-run", "--items", "project", "--project", root, "--home", home}, strings.NewReader(""), &out, &stderr)
+	if code != 0 || !strings.Contains(out.String(), `status_line = ["project-name"]`) {
+		t.Fatalf("items override code=%d out=%q err=%q", code, out.String(), stderr.String())
+	}
+}
+
 func TestExplainAndDoctorJSON(t *testing.T) {
 	root := initProject(t)
 	home := t.TempDir()
@@ -165,6 +211,36 @@ func TestHelpAndRuntimeContract(t *testing.T) {
 	var out, stderr bytes.Buffer
 	code := Run(context.Background(), []string{"render", "--runtime", "invalid"}, strings.NewReader("{}"), &out, &stderr)
 	if code != 2 || !strings.Contains(stderr.String(), "auto, claude, or generic") {
+		t.Fatalf("code=%d out=%q err=%q", code, out.String(), stderr.String())
+	}
+}
+
+func TestOnboardingHelpDocumentsEffectiveConfigOptions(t *testing.T) {
+	for _, tc := range []struct {
+		command string
+		want    []string
+	}{
+		{command: "preview", want: []string{"--preset", "--runtime", "--project", "--home"}},
+		{command: "install", want: []string{"--scope", "--dry-run", "--strict", "--items", "--project", "--home"}},
+	} {
+		var out, stderr bytes.Buffer
+		code := Run(context.Background(), []string{"help", tc.command}, strings.NewReader(""), &out, &stderr)
+		if code != 0 || stderr.Len() != 0 {
+			t.Fatalf("command=%s code=%d err=%q", tc.command, code, stderr.String())
+		}
+		for _, wanted := range tc.want {
+			if !strings.Contains(out.String(), wanted) {
+				t.Fatalf("command=%s missing %s in %q", tc.command, wanted, out.String())
+			}
+		}
+	}
+}
+
+func TestDoctorWarningsIncludeRepairCommands(t *testing.T) {
+	root, home := initProject(t), t.TempDir()
+	var out, stderr bytes.Buffer
+	code := Run(context.Background(), []string{"doctor", "--project", root, "--home", home}, strings.NewReader(""), &out, &stderr)
+	if code != 1 || stderr.Len() != 0 || !strings.Contains(out.String(), "signalrail install claude --scope user") || !strings.Contains(out.String(), "signalrail install codex --scope user") {
 		t.Fatalf("code=%d out=%q err=%q", code, out.String(), stderr.String())
 	}
 }
@@ -386,7 +462,7 @@ func TestDoctorUsesProjectOverrideAndRequiresSignalRailMarker(t *testing.T) {
 	out.Reset()
 	stderr.Reset()
 	code = Run(context.Background(), []string{"doctor", "--json", "--home", home, "--project", root}, strings.NewReader(""), &out, &stderr)
-	if code != 1 {
+	if code != 1 || !strings.Contains(out.String(), "signalrail install codex --scope project") {
 		t.Fatalf("unmarked code=%d out=%q", code, out.String())
 	}
 }

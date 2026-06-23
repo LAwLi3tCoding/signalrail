@@ -25,6 +25,25 @@ try {
     New-Item -ItemType Directory -Force -Path (Join-Path $project ".git") | Out-Null
     "2`ny`n" | & $binary config --lang en --scope project --project $project --home $testHome | Out-Null
     Assert-NativeSuccess "config"
+    $configText = @(
+        'version = 1',
+        'segments = ["model", "context"]',
+        '',
+        '[runtime.codex]',
+        'segments = ["model", "context"]'
+    ) -join [Environment]::NewLine
+    Set-Content -Path (Join-Path $project ".signalrail.toml") -Value $configText -NoNewline
+    $effectivePreview = & $binary preview --project $project --home $testHome
+    Assert-NativeSuccess "effective preview"
+    if ($effectivePreview -notmatch "GPT-5\.5") { throw "effective preview did not include configured model segment" }
+    if ($effectivePreview -notmatch "CTX 38% left") { throw "effective preview did not include configured context segment" }
+    if ($effectivePreview -match "Build renderer") { throw "effective preview ignored configured segments" }
+    $codexDryRun = & $binary install codex --scope project --dry-run --home $testHome --project $project
+    Assert-NativeSuccess "codex dry-run"
+    if ($codexDryRun -notmatch 'status_line = \["model-with-reasoning", "context-remaining"\]') {
+        throw "Codex dry-run did not compile configured runtime segments"
+    }
+    if ($codexDryRun -match "git-branch") { throw "Codex dry-run ignored configured runtime segments" }
     & $binary task set "Smoke task" --total 2 --project $project | Out-Null
     Assert-NativeSuccess "task set"
     & $binary task step --project $project | Out-Null

@@ -13,14 +13,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LAwLi3t-CN/signalrail/internal/adapter"
-	"github.com/LAwLi3t-CN/signalrail/internal/config"
-	"github.com/LAwLi3t-CN/signalrail/internal/diagnostics"
-	"github.com/LAwLi3t-CN/signalrail/internal/install"
-	"github.com/LAwLi3t-CN/signalrail/internal/provider"
-	"github.com/LAwLi3t-CN/signalrail/internal/render"
-	"github.com/LAwLi3t-CN/signalrail/internal/status"
-	taskstate "github.com/LAwLi3t-CN/signalrail/internal/task"
+	"github.com/LAwLi3tCoding/signalrail/internal/adapter"
+	"github.com/LAwLi3tCoding/signalrail/internal/config"
+	"github.com/LAwLi3tCoding/signalrail/internal/diagnostics"
+	"github.com/LAwLi3tCoding/signalrail/internal/install"
+	"github.com/LAwLi3tCoding/signalrail/internal/provider"
+	"github.com/LAwLi3tCoding/signalrail/internal/render"
+	"github.com/LAwLi3tCoding/signalrail/internal/status"
+	taskstate "github.com/LAwLi3tCoding/signalrail/internal/task"
 )
 
 const Version = "0.1.0-dev"
@@ -156,15 +156,39 @@ func runPreview(args []string, stdout, stderr io.Writer) int {
 	if err != nil || len(pos) != 0 {
 		return usageError(stderr, err, "preview accepts options only")
 	}
-	if err := validateCommand(opts, flags, []string{"preset", "width"}, []string{"ascii"}); err != nil {
+	if err := validateCommand(opts, flags, []string{"preset", "width", "runtime", "project", "home"}, []string{"ascii"}); err != nil {
 		return usageError(stderr, err, "")
 	}
-	preset := value(opts, "preset", "standard")
+	runtimeName := config.RuntimeClaude
+	if raw, explicit := opts["runtime"]; explicit {
+		var runtimeErr error
+		runtimeName, runtimeErr = configRuntime(raw)
+		if runtimeErr != nil {
+			return usageError(stderr, runtimeErr, "")
+		}
+	}
 	widths := map[string]int{"wide": 160, "standard": 120, "compact": 80, "minimal": 40}
-	width, ok := widths[preset]
-	if !ok {
-		fmt.Fprintf(stderr, "unknown preset %q\n", preset)
-		return 2
+	width := 120
+	cfg := defaultPreviewConfig()
+	home := ""
+	if preset, explicit := opts["preset"]; explicit {
+		var ok bool
+		width, ok = widths[preset]
+		if !ok {
+			fmt.Fprintf(stderr, "unknown preset %q\n", preset)
+			return 2
+		}
+	} else {
+		project, resolvedHome, rootErr := roots(opts)
+		if rootErr != nil {
+			return usageError(stderr, rootErr, "")
+		}
+		home = resolvedHome
+		cfg, err = config.Load(project, home, runtimeName, config.Overrides{})
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 2
+		}
 	}
 	if raw := opts["width"]; raw != "" {
 		width, err = strconv.Atoi(raw)
@@ -172,8 +196,11 @@ func runPreview(args []string, stdout, stderr io.Writer) int {
 			return usageError(stderr, err, "width must be positive")
 		}
 	}
-	cfg := defaultPreviewConfig()
-	result, err := render.Render(previewSnapshot(), cfg, render.Options{Width: width, Format: "plain", ASCII: flags["ascii"]})
+	userName := ""
+	if home != "" {
+		userName = filepath.Base(home)
+	}
+	result, err := render.Render(previewSnapshot(), cfg, render.Options{Width: width, Format: "plain", ASCII: flags["ascii"], HomeDir: home, UserName: userName})
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
@@ -367,7 +394,17 @@ func runInstall(args []string, stdout, stderr io.Writer) int {
 	if runtimeName == "claude" {
 		change, err = install.PlanClaude(filepath.Join(base, ".claude", "settings.json"), "signalrail render --runtime claude --format ansi")
 	} else {
-		items := strings.Split(value(opts, "items", "model,project,branch,progress,context"), ",")
+		var items []string
+		if raw, explicit := opts["items"]; explicit {
+			items = strings.Split(raw, ",")
+		} else {
+			cfg, loadErr := config.Load(project, home, config.RuntimeCodex, config.Overrides{})
+			if loadErr != nil {
+				fmt.Fprintln(stderr, loadErr)
+				return 2
+			}
+			items = codexIntents(cfg.Segments)
+		}
 		change, warnings, err = install.PlanCodex(filepath.Join(base, ".codex", "config.toml"), items, []string{"activity", "project"})
 	}
 	if err != nil {
@@ -390,6 +427,30 @@ func runInstall(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "Installed %s configuration at %s\n", runtimeName, change.Path)
 	return 0
+}
+
+func configRuntime(name string) (config.Runtime, error) {
+	switch name {
+	case "auto", "claude":
+		return config.RuntimeClaude, nil
+	case "codex":
+		return config.RuntimeCodex, nil
+	default:
+		return "", fmt.Errorf("runtime must be auto, claude, or codex")
+	}
+}
+
+func codexIntents(segments []status.SegmentName) []string {
+	mapping := map[status.SegmentName][]string{
+		status.SegmentModel: {"model"}, status.SegmentProject: {"project", "branch"},
+		status.SegmentTask: {"task"}, status.SegmentProgress: {"progress"},
+		status.SegmentContext: {"context"}, status.SegmentCost: {"cost"},
+	}
+	var intents []string
+	for _, segment := range segments {
+		intents = append(intents, mapping[segment]...)
+	}
+	return intents
 }
 
 func runExplain(args []string, stdout, stderr io.Writer) int {
@@ -599,13 +660,13 @@ func usageError(stderr io.Writer, err error, message string) int {
 }
 func writeHelp(stdout io.Writer, command string) bool {
 	usage := map[string]string{
-		"render":  "signalrail render [--runtime auto|claude|generic] [--width N] [--format ansi|plain|json]",
-		"preview": "signalrail preview [--preset wide|standard|compact|minimal] [--width N]",
-		"config":  "signalrail config [--lang en|zh-CN] [--scope user|project]",
+		"render":  "signalrail render [--runtime auto|claude|generic] [--width N] [--format ansi|plain|json] [--project DIR] [--home DIR] [--ascii] [--no-color]",
+		"preview": "signalrail preview [--preset wide|standard|compact|minimal] [--runtime auto|claude|codex] [--width N] [--project DIR] [--home DIR] [--ascii]",
+		"config":  "signalrail config [--lang en|zh-CN] [--scope user|project] [--project DIR] [--home DIR]",
 		"task":    "signalrail task set|step|block|done|clear|show [options]",
-		"install": "signalrail install claude|codex [--scope user|project] [--dry-run]",
-		"explain": "signalrail explain [--json]",
-		"doctor":  "signalrail doctor [--json]",
+		"install": "signalrail install claude|codex [--scope user|project] [--dry-run] [--strict] [--items LIST] [--project DIR] [--home DIR]",
+		"explain": "signalrail explain [--json] [--project DIR] [--home DIR]",
+		"doctor":  "signalrail doctor [--json] [--project DIR] [--home DIR]",
 		"version": "signalrail version",
 	}
 	if command != "" {

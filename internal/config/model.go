@@ -1,6 +1,6 @@
 package config
 
-import "github.com/LAwLi3t-CN/signalrail/internal/status"
+import "github.com/LAwLi3tCoding/signalrail/internal/status"
 
 const CurrentVersion = 1
 
