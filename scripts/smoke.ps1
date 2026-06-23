@@ -38,7 +38,7 @@ try {
     if ($effectivePreview -notmatch "GPT-5\.5") { throw "effective preview did not include configured model segment" }
     if ($effectivePreview -notmatch "CTX 38% left") { throw "effective preview did not include configured context segment" }
     if ($effectivePreview -match "Build renderer") { throw "effective preview ignored configured segments" }
-    $codexDryRun = & $binary install codex --scope project --dry-run --home $testHome --project $project
+    $codexDryRun = (& $binary install codex --scope project --dry-run --home $testHome --project $project) -join [Environment]::NewLine
     Assert-NativeSuccess "codex dry-run"
     if ($codexDryRun -notmatch 'status_line = \["model-with-reasoning", "context-remaining"\]') {
         throw "Codex dry-run did not compile configured runtime segments"
