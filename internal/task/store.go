@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/LAwLi3tCoding/signalrail/internal/status"
@@ -112,7 +113,7 @@ func acquireStateLock(statePath string) (func(), error) {
 				}
 			}, nil
 		}
-		if !errors.Is(err, os.ErrExist) {
+		if !lockBusy(err) {
 			return nil, fmt.Errorf("acquire task state lock: %w", err)
 		}
 		if info, statErr := os.Lstat(path); statErr == nil && time.Since(info.ModTime()) > lockStale {
@@ -125,6 +126,17 @@ func acquireStateLock(statePath string) (func(), error) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+}
+
+func lockBusy(err error) bool {
+	return lockBusyForGOOS(err, runtime.GOOS)
+}
+
+func lockBusyForGOOS(err error, goos string) bool {
+	if errors.Is(err, os.ErrExist) {
+		return true
+	}
+	return goos == "windows" && errors.Is(err, os.ErrPermission)
 }
 
 func apply(task status.Task, mutation Mutation, now time.Time) (status.Task, error) {

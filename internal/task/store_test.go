@@ -121,6 +121,19 @@ func TestClearRemovesOnlyTaskState(t *testing.T) {
 	}
 }
 
+func TestLockBusyErrorClassification(t *testing.T) {
+	if !lockBusyForGOOS(os.ErrExist, "linux") {
+		t.Fatal("existing lock should be busy on every platform")
+	}
+	permissionErr := &os.PathError{Op: "open", Path: "state.lock", Err: os.ErrPermission}
+	if !lockBusyForGOOS(permissionErr, "windows") {
+		t.Fatal("Windows permission denial while opening lock should be retried as busy")
+	}
+	if lockBusyForGOOS(permissionErr, "linux") {
+		t.Fatal("non-Windows permission denial should remain a real error")
+	}
+}
+
 func TestConcurrentUpdatesSerialize(t *testing.T) {
 	root := initRepo(t)
 	if _, err := Update(root, Mutation{Kind: Set, Title: "Parallel", TotalSteps: 32}, time.Now()); err != nil {
