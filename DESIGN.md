@@ -16,7 +16,7 @@
 ## Product goals
 
 - Put model, project, active task, progress, and context pressure in the first scan path.
-- Provide one semantic configuration and state model across Claude Code and Codex.
+- Provide one semantic vocabulary across Claude Code and Codex while exposing runtime-specific data and capability limits.
 - Remain readable at 80, 120, and 160 columns without wrapping.
 - Make estimated, cached, stale, and unavailable values visibly different from exact values.
 - Keep cost optional and identity information off by default.
@@ -32,7 +32,7 @@
 
 - Primary: developers running long agentic coding sessions in terminal IDEs.
 - Secondary: teams that want a shared project status-line policy without sharing user identity or local paths.
-- Jobs: identify the active model and project, see whether work is progressing, anticipate context pressure, detect stale or inferred data, and move task state between Codex and Claude Code.
+- Jobs: identify the active model and project, see whether work is progressing, anticipate context pressure, detect stale or inferred data, and inspect shared task state from either runtime's shell without claiming native Codex injection.
 
 ## Information architecture
 
@@ -52,7 +52,7 @@ Identity, email, account plan, session ID, CLI version, clock, and weather are e
 Wide (160+ columns):
 
 ```text
-◆ GPT-5.5 · high  ◇ signalrail/main  ▶ Build renderer  3/7 █████░░  CTX 38% left ~42m  $1.24~
+◆ GPT-5.5 · high  ◇ signalrail/main  ▶ Build renderer  3/7 ███░░░░  CTX 38% left ~42m  $1.24~
 ```
 
 Standard (100-159 columns):
@@ -124,7 +124,7 @@ Best for dashboards, but consumes terminal height and is more prone to redraw gl
 - Normalized snapshot: runtime-neutral model for session, project, task, progress, context, cost, quota, freshness, and provenance.
 - Claude adapter: converts official stdin JSON to a normalized snapshot.
 - Codex compiler: maps SignalRail segment intent to supported native `[tui].status_line`, color, and terminal-title settings.
-- Project state: `.signalrail/state.json` stores task, phase, progress, blockers, and timestamps for cross-agent handoff.
+- Project state: `.signalrail/state.json` stores task, phase, progress, blockers, and timestamps for handoff through SignalRail commands and the Claude renderer. Codex's native rail cannot read this file.
 - Config resolver: built-in defaults, user config, project config, runtime profile, then CLI flags.
 - Adaptive renderer: plain, ANSI, and JSON outputs with width-aware segment selection.
 - Settings: bilingual interactive menu; persisted labels and status-line output remain English.
@@ -134,7 +134,11 @@ Best for dashboards, but consumes terminal height and is more prone to redraw gl
 
 Claude Code provides command execution, JSON stdin, ANSI, links, multi-line output, and periodic refresh. SignalRail uses the full renderer there.
 
-Codex currently provides configurable built-in status items, theme-derived colors, and terminal-title items, but no external command provider. SignalRail therefore compiles the shared intent into the closest native Codex configuration. Unsupported custom segments produce an explicit warning. `signalrail preview` and JSON output remain available everywhere.
+Codex currently provides configurable built-in status items, theme-derived colors, and terminal-title items, but no external command provider. SignalRail therefore compiles the shared intent into the closest native Codex configuration. Codex's `task-progress` reflects Codex `update_plan`, not `.signalrail/state.json`. Shared project task state remains available through `signalrail task show` and `signalrail preview`. Unsupported custom segments produce an explicit warning.
+
+The v1 compatibility baseline is OpenAI Codex `main` commit `406062c3af8b27c8e1b4b83c485ebe1ae0df874c` (2026-06-19). Generated items are limited to: `model`, `model-with-reasoning`, `reasoning`, `current-dir`, `project-name`, `git-branch`, `run-state`, `context-remaining`, `context-used`, `five-hour-limit`, `weekly-limit`, `codex-version`, `context-window-size`, `used-tokens`, `thread-id`, `fast-mode`, `thread-title`, and `task-progress`.
+
+Terminal titles use a separate enum pinned to the same commit: `app-name`, `project-name`, `current-dir`, `activity`, `run-state`, `thread-title`, `git-branch`, `context-remaining`, `context-used`, `five-hour-limit`, `weekly-limit`, `codex-version`, `used-tokens`, `total-input-tokens`, `total-output-tokens`, `thread-id`, `fast-mode`, `model`, `model-with-reasoning`, `reasoning`, and `task-progress`.
 
 ## Configuration
 
@@ -187,9 +191,15 @@ Arrays replace lower-priority arrays. Tables merge by key. Unknown keys are reje
 - Installer writes backups and supports `--dry-run`.
 - No global config mutation occurs during tests.
 
+## v1 delivery boundary
+
+v1 includes one-line rendering, Claude stdin integration, Codex native-config generation, project/user TOML, project task state, bilingual numbered settings, preview, explain, doctor, safe installers, tests, CI, and source-level release documentation.
+
+Deferred beyond v1: Dual Deck rendering, network quota fetches, background daemons, transcript watchers, native live Codex custom text, IDE extensions, package-manager publication, signed binaries, and web dashboards.
+
 ## Differentiating features
 
-- Confidence-aware metrics with source and freshness.
+- Confidence-aware metrics with separate confidence (`exact`, `estimated`, `unavailable`) and freshness (`fresh`, `cached`, `stale`, `degraded`) dimensions.
 - Adaptive Information Budget instead of fixed breakpoint templates.
 - Context forecast based on recent consumption rate, clearly marked estimated.
 - Session Pulse for active, idle, blocked, and stale work.
@@ -200,9 +210,12 @@ Arrays replace lower-priority arrays. Tables merge by key. Unknown keys are reje
 ## Success signals
 
 - No wrapping or broken ANSI at 40, 60, 80, 120, and 160 columns.
-- Same project task state is visible from Claude and Codex integrations.
+- Project task state is visible in Claude and in runtime-neutral `task show/preview`; Codex native `task-progress` truthfully represents only Codex `update_plan`.
 - Every non-exact metric exposes provenance and freshness in `explain --json`.
-- Claude install works from official stdin fixtures; Codex generated config uses only current upstream-supported item IDs.
+- Claude install works from official stdin fixtures; Codex output uses only the pinned compatibility item IDs above.
+- `render` exits 0 with one protocol-clean line, invalid input exits 2 with stderr diagnostics, and unsupported Codex fields warn or fail according to policy.
+- Cached render p95 is under 20 ms and cold render p95 is under 50 ms in the release benchmark.
+- Privacy tests prove home paths, usernames, and remote owners are redacted; provenance tests cover every rendered segment.
 - Full test, lint, build, and install smoke checks pass on release branches.
 
 ## Open questions

@@ -1,0 +1,10 @@
+version = 1
+segments = ["model", "task", "progress", "context"]
+
+[privacy]
+redact_user = true
+redact_paths = true
+sensitive_branches = ["customer/*", "incident/*", "private/*"]
+
+[runtime.codex]
+segments = ["model", "progress", "context"]

@@ -21,6 +21,7 @@ This survey uses repository metadata and upstream documentation available on 202
 
 - [Claude Code status-line documentation](https://code.claude.com/docs/en/statusline) defines command JSON stdin, ANSI/multi-line output, event updates, refresh intervals, context, cost, rate limits, task-related subagent data, and trust requirements.
 - [OpenAI Codex config schema](https://github.com/openai/codex/blob/main/codex-rs/core/config.schema.json) defines native `tui.status_line`, `status_line_use_colors`, and `terminal_title` configuration.
+- SignalRail v1 pins its generated item vocabulary to OpenAI Codex commit [`406062c`](https://github.com/openai/codex/commit/406062c3af8b27c8e1b4b83c485ebe1ae0df874c), observed on 2026-06-19.
 - [OpenAI Codex issue #20043](https://github.com/openai/codex/issues/20043) documents the missing command-backed extension and was closed as a duplicate of the active customization request.
 - [OpenAI Codex issue #10233](https://github.com/openai/codex/issues/10233) documents the lack of a supported headless equivalent for interactive status data.
 

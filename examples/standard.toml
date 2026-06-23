@@ -1,0 +1,10 @@
+version = 1
+segments = ["model", "project", "task", "progress", "context"]
+
+[privacy]
+redact_user = true
+redact_paths = true
+
+[cost]
+enabled = false
+currency = "USD"
